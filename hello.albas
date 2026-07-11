@@ -1,0 +1,3 @@
+10 print type_your_name_:_
+20 input inp
+30 println nice_to_meet_you!
