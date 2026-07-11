@@ -1,5 +1,5 @@
 
-"""Aseembly-Like Basic minimum implemantation"""
+"""Assembly-Like Basic minimum implementation"""
 
 class GlobalVals:
 
