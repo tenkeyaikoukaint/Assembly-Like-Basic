@@ -1,5 +1,5 @@
 
-"""Aseembly-Like Basic"""
+"""Aseembly-Like Basic minimum implemantation"""
 
 class GlobalVals:
 
