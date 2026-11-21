@@ -1,5 +1,5 @@
 
-"""Assembly-Like Basic minimum implementation"""
+"""Assembly-Like Basic standard implementation"""
 
 import sys
 
