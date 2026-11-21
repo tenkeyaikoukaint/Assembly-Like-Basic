@@ -15,3 +15,6 @@ store*+<br/>
 stores*+<br/>
 print*<br/>
 prints*+<br/>
+
+[label]<br/>
+add prefix &<br/>
