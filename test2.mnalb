@@ -1,0 +1,9 @@
+
+
+load 6
+set 5
+stores hello!
+set 5
+prints
+
+

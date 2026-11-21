@@ -1,0 +1,14 @@
+
+set+ 5
+jpnz+ label1
+load 7
+set 5
+stores nonpass
+set 5
+prints 
+&label1:
+load 6
+set 5
+stores passed
+set 5
+prints 
