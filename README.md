@@ -1,20 +1,20 @@
-# Assembly-Like Basic or shortly ALBasic
-Easiest interpreter and insanely twist
+# Assembly-Like Basic (or simply ALBasic)
+The easiest interpreter with an insanely twisted design.
 
-[variable or resister]<br/>
-only *(accumulator) +(pointer/counter)
+### Registers
+Only two registers exist: `*` (accumulator) and `+` (pointer/counter).
 
-[instruction]<br/>
-load* arg     : load arg to accumulator<br/>
-set+ arg      : set arg to counter<br/>
-inc+          : increment counter<br/>
-dec+          : decrement counter<br/>
-add*+         : add acccumurator to data that points by counter<br/>
-sub*+         : sub contents of pointer from accumulator <br/>
-store*+       : store accumulator to memory that points by counter<br/>
-stores*+  arg : store arg to memory that points by counter these length is indicate by accumulator<br/>
-print*        : print number of data that points by counter<br/>
-prints*+      : print contents of counter these length is indicate by accumulator   <br/>
+### Instructions
+- `load* arg`     : Load `arg` into the accumulator.
+- `set+ arg`      : Set `arg` to the counter.
+- `inc+`          : Increment the counter.
+- `dec+`          : Decrement the counter.
+- `add*+`         : Add the value pointed to by the counter to the accumulator.
+- `sub*+`         : Subtract the value pointed to by the counter from the accumulator.
+- `store*+`       : Store the accumulator's value into the memory address pointed to by the counter.
+- `stores*+ arg`  : Store `arg` into memory starting at the counter, for a length specified by the accumulator.
+- `print*`        : Print the number at the memory address pointed to by the counter.
+- `prints*+`      : Print characters from memory starting at the counter, for a length specified by the accumulator.
 
-[label]<br/>
-add prefix &<br/>
+### Labels
+Add the prefix `&` (e.g., `&loop`).
