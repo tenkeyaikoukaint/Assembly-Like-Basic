@@ -18,3 +18,10 @@ Only two registers exist: `*` (accumulator) and `+` (pointer/counter).
 
 ### Labels
 Add the prefix `&` (e.g., `&loop`).
+
+### Memory
+
+256 Bytes or Words. 
+
+
+１##
