@@ -1,5 +1,5 @@
 # Assembly-Like Basic (or simply ALBasic)
-The easiest interpreter with an insanely twisted design.
+The Basic-like interpreter (simplest parser) with an insanely twisted design.
 
 ### Registers
 Only two registers exist: `*` (accumulator) and `+` (pointer/counter).
