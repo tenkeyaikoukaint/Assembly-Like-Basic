@@ -1,3 +1,5 @@
 load 10
-add 13
+set 5
+store 13
+add
 print

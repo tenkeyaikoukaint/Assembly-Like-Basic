@@ -1,5 +1,5 @@
 
-"""Assembly-Like Basic standard implementation"""
+"""Assembly-Like Basic minimum implementation"""
 
 import sys
 
@@ -26,24 +26,18 @@ def lexer(stmt):
     label = ""
     opcode = ""
     operand = ""
-    if stmt[ptr].startswith("&"):
-        label = stmt[ptr].replace("&","")
-        if len(stmt)>=2:
-            ptr += 1
-    if len(stmt)>=1:
-        opcode = stmt[ptr]
-        if len(stmt)>=1:
-            opcode = stmt[ptr]
-        if len(stmt) >= 2:
-            ptr += 1
-            operand = stmt[ptr]
+    if stmt and stmt[0].startswith("&"):
+        label = stmt.pop(0).replace("&", "")
+    if stmt:
+        opcode = stmt.pop(0)
+    if stmt:
+        operand = stmt.pop(0)
     return label, opcode, operand
 
 def parse(line):
     global Vals
     op = line.opcode
-    argin = Vals.counter
-    argout = line.operand
+    arg = line.operand
     if op == "print" or op == "print*":
         # Vals.print_buffer += line.operand.replace("_"," ")
         print(f"{Vals.acc}")
@@ -59,32 +53,39 @@ def parse(line):
     elif op == "inputs" or op == "inputs*+":
         pass
     elif op == "store" or op == "store+":
-        Vals.memory[Vals.counter] = ord(line.operand[i])
+        Vals.memory[Vals.counter] = int(arg)
     elif op == "stores" or op == "stores*+":
         for i in range(0,Vals.acc):
             Vals.memory[Vals.counter] = ord(line.operand[i])
             Vals.counter +=1
     elif op == "load" or op == "load*":
-         Vals.acc = int(argout)
+         Vals.acc = int(arg)
     elif op == "set" or op == "set+":
-         Vals.counter = int(argout)
-    elif op == "add" or op == "add*":
-        Vals.acc += int(argout)
-    elif op == "sub" or op == "sub*":
-        Vals.acc -= int(argout)
+         Vals.counter = int(arg)
+    elif op == "add" or op == "add*+":
+        Vals.acc += Vals.memory[Vals.counter]
+    elif op == "sub" or op == "sub*+":
+        Vals.acc -= Vals.memory[Vals.counter]
     elif op == "inc" or op == "inc+":
         Vals.counter += 1
     elif op == "dec" or op == "dec+":
         Vals.counter -= 1
     elif op == "cinc" or op == "cinc*+":
-        if Vals.acc == arg:
+        if Vals.acc == int(arg):
             Vals.counter += 1
     elif op == "cdec" or op == "cdec*+":
-        if Vals.acc == arg:
+        if Vals.acc == int(arg):
             Vals.counter -= 1
     elif op == "jpnz" or op == "jpnz+":
         if Vals.counter != 0:
-            Vals.pc = labeltolinenum(line.operand)
+            Vals.pc = labeltolinenum(arg)-1
+    elif op == "call" or op == "call+":
+         Vals.memory[Vals.counter] = Vals.pc
+         Vals.counter += 1
+         Vals.pc = labeltolinenum(arg)-1
+    elif op == "ret" or op == "ret+":
+         Vals.counter -= 1
+         Vals.pc = Vals.memory[Vals.counter]
 
 def labeltolinenum(label):
     code = Vals.program
