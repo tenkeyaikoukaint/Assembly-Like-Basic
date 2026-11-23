@@ -19,7 +19,7 @@ Only two registers exist: `*` (accumulator) and `+` (pointer/counter).
 - `cinc*+ arg`    : Increment the counter if the accumulator is equal to arg 
 - `cdec*+ arg`    : Decrement the counter if the accumulator is equal to arg
 - `print+`        : Print the number at the memory address pointed to by the counter.
-- `prints*+`      : Print characters from memory starting at the counter, for a length specified by the accumulator.
+- `prints*+`      : Print characters from memory starting at the counter, for a length specified by the accumulator.<br />
  resister suffixes can be omited.
 
 ### Labels
