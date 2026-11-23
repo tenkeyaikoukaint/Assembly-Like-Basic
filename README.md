@@ -21,7 +21,7 @@ Only two registers exist: `*` (accumulator) and `+` (pointer/counter).
 - `print+`        : Print the number at the memory address pointed to by the counter.
 - `prints*+`      : Print characters from memory starting at the counter, for a length specified by the accumulator.
 
- resister suffixes can be omited.
+ Resister suffixes can be omited.
 
 ### Labels
 Add the prefix `&` (e.g., `&loop`).
