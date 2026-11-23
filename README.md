@@ -12,7 +12,10 @@ Only two registers exist: `*` (accumulator) and `+` (pointer/counter).
 - `add*+`         : Add the value pointed to by the counter to the accumulator.
 - `sub*+`         : Subtract the value pointed to by the counter from the accumulator.
 - `store*+`       : Store the accumulator's value into the memory address pointed to by the counter.
-- `stores*+ arg`  : Store `arg` into memory starting at the counter, for a length specified by the accumulator.
+- `stores*+ arg`  : Store `arg`(string) into memory starting at the counter, for a length specified by the accumulator.
+- `call+ label`   : Jump to label and keep current program counter to memory and increment the counter.
+- `ret+`          : Fetch return address from counter and jump.
+- `jpnz+`         : Jump if the value counter not equal zero.
 - `print+`        : Print the number at the memory address pointed to by the counter.
 - `prints*+`      : Print characters from memory starting at the counter, for a length specified by the accumulator.
 
