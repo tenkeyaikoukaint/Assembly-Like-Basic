@@ -43,10 +43,11 @@ def parse(vm):
         print(f"{vm.acc}")
     elif op == "prints" or op == "prints*+":
         vm.print_buffer = ""
-        for i in range(0, vm.acc):
-            vm.print_buffer += chr(vm.memory[vm.counter])
-            count(vm, 1)
-        print(vm.print_buffer)
+        length = min(vm.acc, len(string))
+        for i in range(length):
+            vm.memory[vm.counter] = ord(string[i])
+            count(vm, 1)       
+            print(vm.print_buffer)
     elif op == "input" or op == "input*":
         # vm.input_buffer = input(vm.print_buffer)
         num = input()
