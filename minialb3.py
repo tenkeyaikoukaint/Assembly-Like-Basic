@@ -45,7 +45,7 @@ def parse(line):
         Vals.print_buffer = ""
         for i in range(0,Vals.acc):
             Vals.print_buffer += chr(Vals.memory[Vals.counter])
-            Vals.counter += 1
+            count(1)
         print(Vals.print_buffer)
     elif op == "input" or op == "input*":
         # Vals.input_buffer = input(Vals.print_buffer)
@@ -56,42 +56,50 @@ def parse(line):
         for i in range(0, Vals.acc):
             if Vals.acc <= len(string):
                Vals.memory[Vals.counter] = ord(string[i])
-               Vals.counter += 1
+               count(1)
     elif op == "store" or op == "store+":
         Vals.memory[Vals.counter] = int(arg)
     elif op == "stores" or op == "stores*+":
         for i in range(0,Vals.acc):
             if Vals.acc <= len(arg):
                 Vals.memory[Vals.counter] = ord(arg[i])
-                Vals.counter +=1
+                count(1)
     elif op == "load" or op == "load*":
          Vals.acc = int(arg)
     elif op == "set" or op == "set+":
-         Vals.counter = int(arg)
+         Vals.counter = int(arg) % 256
     elif op == "add" or op == "add*+":
         Vals.acc += Vals.memory[Vals.counter]
     elif op == "sub" or op == "sub*+":
         Vals.acc -= Vals.memory[Vals.counter]
     elif op == "inc" or op == "inc+":
-        Vals.counter += 1
+        count(1)
     elif op == "dec" or op == "dec+":
-        Vals.counter -= 1
+        count(-1)
     elif op == "cinc" or op == "cinc*+":
         if Vals.acc == int(arg):
-            Vals.counter += 1
+            count(1)
     elif op == "cdec" or op == "cdec*+":
         if Vals.acc == int(arg):
-            Vals.counter -= 1
+            count(-1)
     elif op == "jpnz" or op == "jpnz+":
         if Vals.counter != 0:
             Vals.pc = labeltolinenum(arg)-1
     elif op == "call" or op == "call+":
          Vals.memory[Vals.counter] = Vals.pc
-         Vals.counter += 1
+         count(1)
          Vals.pc = labeltolinenum(arg)-1
     elif op == "ret" or op == "ret+":
-         Vals.counter -= 1
+         count(-1)
          Vals.pc = Vals.memory[Vals.counter]
+
+def count(arg):
+    if arg>= 0:
+        if Vals.counter < 255:
+            Vals.counter += arg:
+    else:
+        if Vals.counter > 0:
+            Vals.counter += arg
 
 def labeltolinenum(label):
     code = Vals.program
