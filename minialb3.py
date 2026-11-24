@@ -48,16 +48,22 @@ def parse(line):
             Vals.counter += 1
         print(Vals.print_buffer)
     elif op == "input" or op == "input*":
-        Vals.input_buffer = input(Vals.print_buffer)
-        Vals.print_buffer = ""
+        # Vals.input_buffer = input(Vals.print_buffer)
+        num = input()
+        Vals.acc = int(num)
     elif op == "inputs" or op == "inputs*+":
-        pass
+        string = input()
+        for i in range(0, Vals.acc):
+            if Vals.acc <= len(string):
+               Vals.memory[Vals.counter] = ord(string[i])
+               Vals.counter += 1
     elif op == "store" or op == "store+":
         Vals.memory[Vals.counter] = int(arg)
     elif op == "stores" or op == "stores*+":
         for i in range(0,Vals.acc):
-            Vals.memory[Vals.counter] = ord(line.operand[i])
-            Vals.counter +=1
+            if Vals.acc <= len(arg):
+                Vals.memory[Vals.counter] = ord(arg[i])
+                Vals.counter +=1
     elif op == "load" or op == "load*":
          Vals.acc = int(arg)
     elif op == "set" or op == "set+":
