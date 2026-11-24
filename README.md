@@ -30,5 +30,13 @@ Add the prefix `&` (e.g., `&loop`).
 
 256 Bytes or Words. 
 
+### Program files
 
-１##
+minialb3.py : complete version
+
+Execute program : python minialb3.py (execution file file name)
+
+test1.mnalb test2.mnalb test4.mnalb : test script
+
+minialb.py : print test
+
