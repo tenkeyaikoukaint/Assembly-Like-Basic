@@ -34,7 +34,7 @@ Add the prefix `&` (e.g., `&loop`).
 
 minialb3.py : complete version
 
-Execute program : python minialb3.py (execution file file name)
+Execute program : `python minialb3.py (execution file's file name)` : like `python minialb3.py test1.mnalb` 
 
 test1.mnalb test2.mnalb test4.mnalb : test script
 
