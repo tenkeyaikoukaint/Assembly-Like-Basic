@@ -94,12 +94,7 @@ def parse(vm):
          vm.pc = vm.memory[vm.counter]
 
 def count(vm, arg):
-    if arg>= 0:
-        if vm.counter < 255:
-            vm.counter += arg
-    else:
-        if vm.counter > 0:
-            vm.counter += arg
+    vm.counter = max(0, min(255, vm.counter + arg))
 
 def labeltolinenum(vm, label):
     code = vm.program
