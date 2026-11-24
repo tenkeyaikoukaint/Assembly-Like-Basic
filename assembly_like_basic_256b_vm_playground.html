@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Assembly-Like Basic — 256B VM Playground</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Fonts: Inter for UI, JetBrains Mono for Code & Hex/Memory -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+          },
+          colors: {
+            hw: {
+              bg: '#090b10',
+              panel: '#10141d',
+              surface: '#161c28',
+              border: '#232c3d',
+              amber: '#f59e0b',
+              emerald: '#10b981',
+              cyan: '#38bdf8',
+            }
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    /* Custom Scrollbars for Retro-Terminal Feel */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0d1017;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #252f42;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #36445f;
+    }
+
+    /* Code Editor Synchronized Line Numbers & Highlight Overlay */
+    .editor-wrapper {
+      position: relative;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      line-height: 22px;
+    }
+    .editor-textarea {
+      tab-size: 2;
+      white-space: pre;
+      overflow-wrap: normal;
+      overflow-x: auto;
+      line-height: 22px;
+      font-size: 13px;
+    }
+    .editor-gutter-line {
+      height: 22px;
+      line-height: 22px;
+    }
+
+    /* Memory Cell Animations & Active Pointer Glow */
+    @keyframes cellWriteFlash {
+      0% {
+        background-color: rgba(16, 185, 129, 0.55);
+        box-shadow: inset 0 0 10px rgba(16, 185, 129, 0.9);
+        transform: scale(1.06);
+      }
+      100% {
+        background-color: rgba(56, 189, 248, 0.14);
+        box-shadow: none;
+        transform: scale(1);
+      }
+    }
+    .cell-flash {
+      animation: cellWriteFlash 0.65s ease-out;
+    }
+    .cell-pointer {
+      border-color: #f59e0b !important;
+      box-shadow: 0 0 0 1px #f59e0b, 0 0 12px rgba(245, 158, 11, 0.45);
+      z-index: 10;
+    }
+    .cell-nonzero {
+      background-color: rgba(56, 189, 248, 0.12);
+      border-color: rgba(56, 189, 248, 0.3);
+    }
+
+    /* Subtle CRT Scanline Header Accent */
+    .scanline-subtle {
+      background-image: linear-gradient(
+        rgba(255, 255, 255, 0.015) 50%,
+        rgba(0, 0, 0, 0.08) 50%
+      );
+      background-size: 100% 4px;
+    }
+  </style>
+</head>
+<body class="bg-hw-bg text-slate-200 font-sans min-h-screen flex flex-col selection:bg-amber-500/30 selection:text-amber-200">
+
+  <!-- ==================== HEADER ==================== -->
+  <header class="border-b border-hw-border bg-hw-panel/90 backdrop-blur sticky top-0 z-30 scanline-subtle">
+    <div class="max-w-[1440px] mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <!-- Hardware Chip Icon -->
+        <div class="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0 shadow-inner">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect>
+            <rect x="9" y="9" width="6" height="6"></rect>
+            <line x1="9" y1="1" x2="9" y2="4"></line>
+            <line x1="15" y1="1" x2="15" y2="4"></line>
+            <line x1="9" y1="20" x2="9" y2="23"></line>
+            <line x1="15" y1="20" x2="15" y2="23"></line>
+            <line x1="20" y1="9" x2="23" y2="9"></line>
+            <line x1="20" y1="14" x2="23" y2="14"></line>
+            <line x1="1" y1="9" x2="4" y2="9"></line>
+            <line x1="1" y1="14" x2="4" y2="14"></line>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-base sm:text-lg font-bold tracking-tight text-slate-100 flex items-center gap-2">
+            Assembly-Like Basic
+            <span class="text-[11px] font-mono font-medium px-2 py-0.5 rounded-full bg-hw-surface border border-hw-border text-amber-400">256B VM</span>
+          </h1>
+          <p class="text-xs text-slate-400 font-mono">
+            "Memory is just an evaluation cache. Code is the real data."
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button id="btnRefOpen" type="button" class="px-3 py-1.5 rounded-lg bg-hw-surface hover:bg-slate-800 border border-hw-border text-xs font-medium text-slate-200 flex items-center gap-1.5 transition cursor-pointer">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+          </svg>
+          Instruction Set
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==================== MAIN WORKSPACE ==================== -->
+  <main class="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 py-5 grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+
+    <!-- LEFT PANEL: Code Editor, Controls, Input & Console (5 cols on desktop) -->
+    <section class="lg:col-span-5 flex flex-col gap-4 min-w-0">
+
+      <!-- Presets Bar -->
+      <div class="bg-hw-panel border border-hw-border rounded-xl p-3 flex flex-col gap-2">
+        <div class="flex items-center justify-between">
+          <span class="text-[11px] font-mono uppercase tracking-wider text-slate-400">Sample Programs</span>
+          <span class="text-[11px] text-slate-500 font-mono">Click to load</span>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4 gap-1.5" id="presetButtons">
+          <button data-preset="hello" class="preset-btn px-2.5 py-1.5 rounded-lg text-xs font-medium bg-hw-surface hover:bg-slate-800 border border-hw-border text-slate-200 transition text-center truncate cursor-pointer">
+            Hello World
+          </button>
+          <button data-preset="countdown" class="preset-btn px-2.5 py-1.5 rounded-lg text-xs font-medium bg-hw-surface hover:bg-slate-800 border border-hw-border text-slate-200 transition text-center truncate cursor-pointer">
+            Countdown
+          </button>
+          <button data-preset="subroutine" class="preset-btn px-2.5 py-1.5 rounded-lg text-xs font-medium bg-hw-surface hover:bg-slate-800 border border-hw-border text-slate-200 transition text-center truncate cursor-pointer">
+            Subroutine
+          </button>
+          <button data-preset="echo" class="preset-btn px-2.5 py-1.5 rounded-lg text-xs font-medium bg-hw-surface hover:bg-slate-800 border border-hw-border text-slate-200 transition text-center truncate cursor-pointer">
+            Input Echo
+          </button>
+        </div>
+      </div>
+
+      <!-- Code Editor Card -->
+      <div class="bg-hw-panel border border-hw-border rounded-xl overflow-hidden flex flex-col shadow-lg">
+        <div class="px-3.5 py-2 bg-hw-surface/70 border-b border-hw-border flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+            <span class="text-xs font-mono font-semibold text-slate-300">PROGRAM CODE</span>
+          </div>
+          <span id="lineCountBadge" class="text-[11px] font-mono text-slate-500">0 lines</span>
+        </div>
+
+        <!-- Synchronized Gutter + Active Line Backdrop + Textarea -->
+        <div class="editor-wrapper flex h-[280px] sm:h-[310px] bg-[#0b0e14] overflow-hidden relative">
+          <!-- Line Numbers Gutter -->
+          <div id="editorGutter" class="w-11 bg-[#0e121a] border-r border-hw-border/70 text-right pr-2.5 py-3 text-slate-600 select-none overflow-hidden shrink-0"></div>
+
+          <!-- Code Area Container -->
+          <div class="relative flex-1 overflow-hidden">
+            <!-- Active PC Line Highlight Bar -->
+            <div id="activeLineHighlight" class="pointer-events-none absolute left-0 right-0 h-[22px] bg-amber-500/15 border-l-2 border-amber-400 transition-transform duration-75 hidden"></div>
+
+            <textarea
+              id="codeEditor"
+              spellcheck="false"
+              autocomplete="off"
+              autocorrect="off"
+              autocapitalize="off"
+              class="editor-textarea relative z-10 w-full h-full bg-transparent text-slate-100 p-3 outline-none resize-none"
+              placeholder="# Write Assembly-Like Basic code here..."
+            ></textarea>
+          </div>
+        </div>
+
+        <!-- Execution Controls -->
+        <div class="p-3 bg-hw-surface/60 border-t border-hw-border flex flex-col gap-3">
+          <div class="flex flex-wrap items-center gap-2">
+            <button id="btnStep" type="button" class="flex-1 sm:flex-none px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs flex items-center justify-center gap-1.5 transition shadow cursor-pointer">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M5 4l10 8-10 8V4zm12 0h2v16h-2V4z"/></svg>
+              Step
+            </button>
+            <button id="btnRun" type="button" class="flex-1 sm:flex-none px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition shadow cursor-pointer">
+              <svg id="iconRun" xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              <span id="labelRun">Run</span>
+            </button>
+            <button id="btnResetPC" type="button" title="Reset PC, ACC, and Counter without clearing RAM (no hidden side effects)" class="px-3 py-2 rounded-lg bg-hw-panel hover:bg-slate-800 border border-hw-border text-slate-200 font-medium text-xs transition cursor-pointer">
+              Reset PC
+            </button>
+            <button id="btnClearRAM" type="button" title="Explicitly zero-fill all 256 bytes of RAM" class="px-3 py-2 rounded-lg bg-rose-950/50 hover:bg-rose-900/60 border border-rose-800/60 text-rose-300 font-medium text-xs transition cursor-pointer">
+              Clear RAM
+            </button>
+          </div>
+
+          <!-- Speed Control -->
+          <div class="flex items-center justify-between gap-3 pt-1 border-t border-hw-border/60">
+            <label for="speedSlider" class="text-[11px] font-mono text-slate-400 shrink-0">CLOCK SPEED</label>
+            <input id="speedSlider" type="range" min="20" max="500" step="10" value="140" class="w-full accent-amber-500 cursor-pointer h-1.5 bg-slate-800 rounded-lg" />
+            <span id="speedLabel" class="text-[11px] font-mono text-amber-400 w-16 text-right shrink-0">140 ms</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Input Buffer & Output Console -->
+      <div class="grid grid-cols-1 gap-3">
+        <!-- Input Buffer -->
+        <div class="bg-hw-panel border border-hw-border rounded-xl p-3 flex flex-col gap-1.5">
+          <div class="flex items-center justify-between">
+            <label for="inputBuffer" class="text-[11px] font-mono uppercase tracking-wider text-slate-400">Input Buffer <span class="text-slate-600">(for `inputs`)</span></label>
+            <span id="inputLenBadge" class="text-[11px] font-mono text-slate-500">0 chars</span>
+          </div>
+          <input
+            id="inputBuffer"
+            type="text"
+            value="HELLO 256B VM!"
+            placeholder="Type text for inputs opcode..."
+            class="w-full px-3 py-2 rounded-lg bg-[#0b0e14] border border-hw-border focus:border-cyan-500/70 outline-none font-mono text-xs text-cyan-300 placeholder:text-slate-600 transition"
+          />
+        </div>
+
+        <!-- Output Console -->
+        <div class="bg-hw-panel border border-hw-border rounded-xl overflow-hidden flex flex-col">
+          <div class="px-3.5 py-2 bg-hw-surface/70 border-b border-hw-border flex items-center justify-between">
+            <span class="text-[11px] font-mono uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+              Console Output
+            </span>
+            <button id="btnClearConsole" type="button" class="text-[11px] font-mono text-slate-500 hover:text-slate-300 transition cursor-pointer">
+              Clear
+            </button>
+          </div>
+          <pre id="consoleOutput" class="h-32 p-3 bg-[#080a0f] font-mono text-xs text-emerald-300 overflow-y-auto whitespace-pre-wrap break-all"></pre>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- RIGHT PANEL: VM Registers & 256-Byte Cache Grid (7 cols on desktop) -->
+    <section class="lg:col-span-7 flex flex-col gap-4 min-w-0">
+
+      <!-- Live Register Badges -->
+      <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+        <div class="bg-hw-panel border border-hw-border rounded-xl p-3 flex flex-col">
+          <span class="text-[10px] font-mono uppercase tracking-wider text-slate-500">PC (Line)</span>
+          <span id="regPC" class="text-lg font-mono font-bold text-slate-100 mt-0.5">0</span>
+        </div>
+        <div class="bg-hw-panel border border-hw-border rounded-xl p-3 flex flex-col">
+          <span class="text-[10px] font-mono uppercase tracking-wider text-slate-500">ACC</span>
+          <span id="regACC" class="text-lg font-mono font-bold text-cyan-400 mt-0.5">0</span>
+        </div>
+        <div class="bg-hw-panel border border-amber-500/40 rounded-xl p-3 flex flex-col">
+          <span class="text-[10px] font-mono uppercase tracking-wider text-amber-400/90">COUNTER (Ptr)</span>
+          <span id="regCounter" class="text-lg font-mono font-bold text-amber-400 mt-0.5">0 <span class="text-xs font-normal text-amber-500/70">(0x00)</span></span>
+        </div>
+        <div class="bg-hw-panel border border-hw-border rounded-xl p-3 flex flex-col">
+          <span class="text-[10px] font-mono uppercase tracking-wider text-slate-500">STEPS</span>
+          <span id="regSteps" class="text-lg font-mono font-bold text-slate-200 mt-0.5">0</span>
+        </div>
+        <div class="col-span-2 sm:col-span-1 bg-hw-panel border border-hw-border rounded-xl p-3 flex flex-col justify-between">
+          <span class="text-[10px] font-mono uppercase tracking-wider text-slate-500">STATUS</span>
+          <div class="flex items-center gap-1.5 mt-1">
+            <span id="statusDot" class="w-2 h-2 rounded-full bg-cyan-400"></span>
+            <span id="regStatus" class="text-xs font-mono font-semibold text-cyan-300">READY</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 256-Byte Memory Visualizer Card -->
+      <div class="bg-hw-panel border border-hw-border rounded-xl overflow-hidden shadow-lg">
+        <!-- Toolbar -->
+        <div class="px-4 py-2.5 bg-hw-surface/70 border-b border-hw-border flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-2.5">
+            <span class="text-xs font-mono font-semibold text-slate-200">256-BYTE EVALUATION CACHE (RAM 0–255)</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <!-- Legend -->
+            <div class="hidden sm:flex items-center gap-3 text-[11px] font-mono text-slate-400">
+              <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm border border-amber-400 inline-block"></span>Ptr</span>
+              <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-cyan-400/25 border border-cyan-400/50 inline-block"></span>Non-Zero</span>
+              <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-500/60 inline-block"></span>Write</span>
+            </div>
+            <!-- DEC / HEX Toggle -->
+            <div class="inline-flex rounded-lg bg-[#0b0e14] p-0.5 border border-hw-border font-mono text-[11px]">
+              <button id="btnModeDec" type="button" class="px-2.5 py-1 rounded-md bg-hw-surface text-amber-400 font-semibold transition cursor-pointer">DEC</button>
+              <button id="btnModeHex" type="button" class="px-2.5 py-1 rounded-md text-slate-400 hover:text-slate-200 transition cursor-pointer">HEX</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 16x16 Grid Container -->
+        <div class="p-3 sm:p-4 overflow-x-auto bg-[#0b0e14]">
+          <div class="min-w-[540px]">
+            <!-- Column Headers -->
+            <div id="memColHeaders" class="grid grid-cols-[34px_repeat(16,minmax(0,1fr))] gap-1 mb-1 text-center font-mono text-[10px] text-slate-500 select-none">
+              <!-- Populated by JS -->
+            </div>
+            <!-- 16 Rows x 16 Cells -->
+            <div id="memGrid" class="flex flex-col gap-1">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Cell Inspector Footer -->
+        <div class="px-4 py-2 bg-hw-surface/50 border-t border-hw-border flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-slate-400">
+          <div id="cellInspector" class="flex items-center gap-3">
+            <span>Hover any cell to inspect address, value, and ASCII</span>
+          </div>
+          <span class="text-slate-500">No separate stack · `call`/`ret` share RAM</span>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <!-- ==================== FLOATING TOOLTIP ==================== -->
+  <div id="cellTooltip" class="fixed pointer-events-none z-50 hidden px-2.5 py-1.5 rounded-lg bg-slate-900/95 border border-slate-700 shadow-xl font-mono text-[11px] text-slate-200 backdrop-blur"></div>
+
+  <!-- ==================== INSTRUCTION REFERENCE MODAL ==================== -->
+  <div id="refModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+    <div class="bg-hw-panel border border-hw-border rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+      <div class="px-5 py-3.5 bg-hw-surface border-b border-hw-border flex items-center justify-between">
+        <div>
+          <h2 class="text-sm font-bold text-slate-100">Instruction Set Reference</h2>
+          <p class="text-xs font-mono text-slate-400">Minimalist 256B VM · Zero Exceptions · No Implicit Side Effects</p>
+        </div>
+        <button id="btnRefClose" type="button" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="p-5 overflow-y-auto space-y-4 text-xs">
+        <div class="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-200/90 leading-relaxed">
+          <strong class="text-amber-300">Design Philosophy:</strong> There are no runtime errors or exceptions. Unknown opcodes are silently skipped; invalid jump labels fall back to line <code class="font-mono">0</code>. Memory is never implicitly zero-filled on reset—use <strong>Reset PC</strong> to re-run code against existing cache, or <strong>Clear RAM</strong> to wipe memory explicitly.
+        </div>
+
+        <table class="w-full text-left border-collapse font-mono">
+          <thead>
+            <tr class="border-b border-hw-border text-slate-400">
+              <th class="py-2 pr-3">Opcode</th>
+              <th class="py-2">Behavior</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-hw-border/60 text-slate-300">
+            <tr><td class="py-2 pr-3 text-amber-400">load N</td><td class="py-2 font-sans">Set <code class="font-mono text-cyan-300">acc = N</code> (defaults to 0 if invalid).</td></tr>
+            <tr><td class="py-2 pr-3 text-amber-400">set N</td><td class="py-2 font-sans">Set <code class="font-mono text-amber-300">counter = N mod 256</code>.</td></tr>
+            <tr><td class="py-2 pr-3 text-amber-400">store [N]</td><td class="py-2 font-sans">Write <code class="font-mono">N</code> (or <code class="font-mono text-cyan-300">acc</code> if omitted) to <code class="font-mono">RAM[counter]</code>.</td></tr>
+            <tr><td class="py-2 pr-3 text-amber-400">add / sub</td><td class="py-2 font-sans"><code class="font-mono">acc = acc ± RAM[counter]</code>.</td></tr>
+            <tr><td class="py-2 pr-3 text-amber-400">inc / cinc</td><td class="py-2 font-sans">Increment <code class="font-mono text-amber-300">counter</code> (wraps mod 256).</td></tr>
+            <tr><td class="py-2 pr-3 text-amber-400">dec / cdec</td><td class="py-2 font-sans">Decrement <code class="font-mono text-amber-300">counter</code> (wraps mod 256).</td></tr>
+            <tr><td class="py-2 pr-3 text-amber-400">print</td><td class="py-2 font-sans">Output <code class="font-mono text-cyan-300">acc</code> followed by a newline.</td></tr>
+            <tr><td class="py-2 pr-3 text-amber-400">stores TEXT</td><td class="py-2 font-sans">Write <code class="font-mono">min(acc, len(TEXT))</code> ASCII codes to RAM starting at <code class="font-mono">counter</code>.</td></tr>
+            <tr><td class="py-2 pr-3 text-amber-400">prints</td><td class="py-2 font-sans">Read <code class="font-mono">acc</code> bytes starting at <code class="font-mono">counter</code> and print as ASCII string.</td></tr>
+            <tr><td class="py-2 pr-3 text-amber-400">inputs</td><td class="py-2 font-sans">Read from Input Buffer, writing <code class="font-mono">min(acc, len(input))</code> ASCII codes at <code class="font-mono">counter</code>.</td></tr>
+            <tr><td class="py-2 pr-3 text-amber-400">&amp;label</td><td class="py-2 font-sans">Define a jump/call target label.</td></tr>
+            <tr><td class="py-2 pr-3 text-amber-400">jmp LABEL</td><td class="py-2 font-sans">Unconditionally jump <code class="font-mono">pc</code> to <code class="font-mono">LABEL</code> (or 0 if undefined).</td></tr>
+            <tr><td class="py-2 pr-3 text-amber-400">jpnz LABEL</td><td class="py-2 font-sans">If <code class="font-mono">counter ≠ 0</code>, jump <code class="font-mono">pc</code> to <code class="font-mono">LABEL</code> (or 0).</td></tr>
+            <tr><td class="py-2 pr-3 text-amber-400">call LABEL</td><td class="py-2 font-sans">Store <code class="font-mono">pc + 1</code> at <code class="font-mono">RAM[counter]</code>, increment <code class="font-mono">counter</code>, jump to <code class="font-mono">LABEL</code>.</td></tr>
+            <tr><td class="py-2 pr-3 text-amber-400">ret</td><td class="py-2 font-sans">Decrement <code class="font-mono">counter</code> and set <code class="font-mono">pc = RAM[counter]</code>.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== VM ENGINE & UI LOGIC ==================== -->
+  <script>
+    (function () {
+      'use strict';
+
+      // ============================================================
+      // 1. SAMPLE PRESET PROGRAMS
+      // ============================================================
+      const PRESETS = {
+        hello: [
+          '# Hello World',
+          '# Write 5 ASCII bytes into cache RAM[0..4], then print',
+          'set 0',
+          'load 5',
+          'stores HELLO',
+          'set 0',
+          'load 5',
+          'prints'
+        ].join('\n'),
+
+        countdown: [
+          '# Countdown (5 to 1)',
+          '# Populate cache RAM[1..5] with values 1..5',
+          'set 5',
+          'load 5',
+          'store',
+          'dec',
+          'load 4',
+          'store',
+          'dec',
+          'load 3',
+          'store',
+          'dec',
+          'load 2',
+          'store',
+          'dec',
+          'load 1',
+          'store',
+          '',
+          '# Walk down pointer until counter == 0',
+          'set 5',
+          '&loop',
+          'load 0',
+          'add',
+          'print',
+          'dec',
+          'jpnz loop'
+        ].join('\n'),
+
+        subroutine: [
+          '# Subroutine & Clean Exit',
+          '# Uses RAM[10] as call stack, RAM[0] for return value',
+          'set 10',
+          'call sub_routine',
+          'load 0',
+          'add',
+          'print',
+          'set 1',
+          'jpnz end',
+          '',
+          '&sub_routine',
+          'set 0',
+          'store 42',
+          'set 11',
+          'ret',
+          '',
+          '&end'
+        ].join('\n'),
+
+        echo: [
+          '# Input Echo (up to 16 bytes)',
+          '# Edit the Input Buffer below, then Step or Run!',
+          'set 32',
+          'load 16',
+          'inputs',
+          'set 32',
+          'load 16',
+          'prints'
+        ].join('\n')
+      };
+
+      // ============================================================
+      // 2. CORE VIRTUAL MACHINE (256-BYTE EVALUATION CACHE)
+      // ============================================================
+      function wrap256(n) {
+        const num = Number(n);
+        if (!Number.isFinite(num)) return 0;
+        return ((Math.trunc(num) % 256) + 256) % 256;
+      }
+
+      function parseNum(raw) {
+        if (raw === undefined || raw === null || raw === '') return 0;
+        const n = Number(raw);
+        return Number.isFinite(n) ? n : 0;
+      }
+
+      const vm = {
+        memory: new Array(256).fill(0),
+        pc: 0,
+        acc: 0,
+        counter: 0,
+        steps: 0,
+        halted: false,
+        lines: [],
+        labels: {},
+        lastWritten: new Set(),
+
+        /**
+         * Parse raw source text into line array and label lookup table.
+         * Does NOT wipe memory (honoring no-side-effects philosophy).
+         */
+        compile(sourceText) {
+          this.lines = sourceText.split(/\r?\n/);
+          this.labels = {};
+          for (let i = 0; i < this.lines.length; i++) {
+            const trimmed = this.lines[i].trim();
+            if (trimmed.startsWith('&') && trimmed.length > 1) {
+              const labelName = trimmed.slice(1).trim().split(/\s+/)[0];
+              if (labelName) {
+                this.labels[labelName] = i;
+              }
+            }
+          }
+        },
+
+        /**
+         * Reset registers and execution state without clearing RAM.
+         */
+        resetRegisters(sourceText) {
+          this.compile(sourceText);
+          this.pc = 0;
+          this.acc = 0;
+          this.counter = 0;
+          this.steps = 0;
+          this.halted = false;
+          this.lastWritten.clear();
+          this.skipNonExecutable();
+        },
+
+        /**
+         * Explicit manual zero-fill of all 256 bytes of RAM.
+         */
+        clearRAM() {
+          this.memory.fill(0);
+          this.lastWritten.clear();
+        },
+
+        /**
+         * Advance PC past blank lines, comments (#), and label definitions (&)
+         * so each Step executes an actual instruction (or halts cleanly).
+         */
+        skipNonExecutable() {
+          while (this.pc >= 0 && this.pc < this.lines.length) {
+            const trimmed = this.lines[this.pc].trim();
+            if (trimmed === '' || trimmed.startsWith('#') || trimmed.startsWith('&')) {
+              this.pc++;
+            } else {
+              break;
+            }
+          }
+          if (this.pc < 0 || this.pc >= this.lines.length) {
+            this.halted = true;
+          }
+        },
+
+        /**
+         * Execute a single instruction at `this.pc`.
+         * Returns { output: string | null, written: number[] }
+         */
+        step(inputText) {
+          this.lastWritten.clear();
+          if (this.halted) return { output: null, written: [] };
+
+          this.skipNonExecutable();
+          if (this.halted) return { output: null, written: [] };
+
+          const rawLine = this.lines[this.pc];
+          const trimmed = rawLine.trim();
+          const firstSpace = trimmed.search(/\s/);
+          const op = (firstSpace === -1 ? trimmed : trimmed.slice(0, firstSpace)).toLowerCase();
+          const argRaw = firstSpace === -1 ? '' : trimmed.slice(firstSpace + 1);
+          const argTrim = argRaw.trim();
+
+          let output = null;
+          let jumped = false;
+
+          switch (op) {
+            case 'load': {
+              this.acc = parseNum(argTrim);
+              break;
+            }
+            case 'set': {
+              this.counter = wrap256(parseNum(argTrim));
+              break;
+            }
+            case 'store': {
+              const val = argTrim !== '' ? parseNum(argTrim) : this.acc;
+              this.memory[this.counter] = val;
+              this.lastWritten.add(this.counter);
+              break;
+            }
+            case 'add': {
+              this.acc = this.acc + this.memory[this.counter];
+              break;
+            }
+            case 'sub': {
+              this.acc = this.acc - this.memory[this.counter];
+              break;
+            }
+            case 'inc':
+            case 'cinc': {
+              this.counter = (this.counter + 1) % 256;
+              break;
+            }
+            case 'dec':
+            case 'cdec': {
+              this.counter = (this.counter - 1 + 256) % 256;
+              break;
+            }
+            case 'print': {
+              output = String(this.acc) + '\n';
+              break;
+            }
+            case 'stores': {
+              const count = Math.min(Math.max(0, Math.floor(this.acc)), argRaw.length);
+              for (let i = 0; i < count; i++) {
+                const addr = (this.counter + i) % 256;
+                this.memory[addr] = argRaw.charCodeAt(i);
+                this.lastWritten.add(addr);
+              }
+              break;
+            }
+            case 'prints': {
+              const count = Math.max(0, Math.floor(this.acc));
+              let str = '';
+              for (let i = 0; i < count; i++) {
+                const addr = (this.counter + i) % 256;
+                const code = this.memory[addr];
+                if (code > 0) {
+                  str += String.fromCharCode(code & 0xFF);
+                }
+              }
+              output = str + '\n';
+              break;
+            }
+            case 'inputs': {
+              const text = inputText || '';
+              const count = Math.min(Math.max(0, Math.floor(this.acc)), text.length);
+              for (let i = 0; i < count; i++) {
+                const addr = (this.counter + i) % 256;
+                this.memory[addr] = text.charCodeAt(i);
+                this.lastWritten.add(addr);
+              }
+              break;
+            }
+            case 'jmp': {
+              const target = Object.prototype.hasOwnProperty.call(this.labels, argTrim)
+                ? this.labels[argTrim]
+                : 0;
+              this.pc = target;
+              jumped = true;
+              break;
+            }
+            case 'jpnz': {
+              if (this.counter !== 0) {
+                const target = Object.prototype.hasOwnProperty.call(this.labels, argTrim)
+                  ? this.labels[argTrim]
+                  : 0;
+                this.pc = target;
+                jumped = true;
+              }
+              break;
+            }
+            case 'call': {
+              this.memory[this.counter] = this.pc + 1;
+              this.lastWritten.add(this.counter);
+              this.counter = (this.counter + 1) % 256;
+              const target = Object.prototype.hasOwnProperty.call(this.labels, argTrim)
+                ? this.labels[argTrim]
+                : 0;
+              this.pc = target;
+              jumped = true;
+              break;
+            }
+            case 'ret': {
+              this.counter = (this.counter - 1 + 256) % 256;
+              const retAddr = Math.trunc(parseNum(this.memory[this.counter]));
+              this.pc = retAddr >= 0 ? retAddr : 0;
+              jumped = true;
+              break;
+            }
+            default: {
+              // Unknown opcodes are silently skipped (no exceptions)
+              break;
+            }
+          }
+
+          this.steps++;
+          if (!jumped) {
+            this.pc++;
+          }
+          this.skipNonExecutable();
+
+          return { output, written: Array.from(this.lastWritten) };
+        }
+      };
+
+      // ============================================================
+      // 3. DOM ELEMENTS & UI STATE
+      // ============================================================
+      const el = {
+        codeEditor: document.getElementById('codeEditor'),
+        editorGutter: document.getElementById('editorGutter'),
+        activeLineHighlight: document.getElementById('activeLineHighlight'),
+        lineCountBadge: document.getElementById('lineCountBadge'),
+        inputBuffer: document.getElementById('inputBuffer'),
+        inputLenBadge: document.getElementById('inputLenBadge'),
+        consoleOutput: document.getElementById('consoleOutput'),
+        btnStep: document.getElementById('btnStep'),
+        btnRun: document.getElementById('btnRun'),
+        iconRun: document.getElementById('iconRun'),
+        labelRun: document.getElementById('labelRun'),
+        btnResetPC: document.getElementById('btnResetPC'),
+        btnClearRAM: document.getElementById('btnClearRAM'),
+        btnClearConsole: document.getElementById('btnClearConsole'),
+        speedSlider: document.getElementById('speedSlider'),
+        speedLabel: document.getElementById('speedLabel'),
+        regPC: document.getElementById('regPC'),
+        regACC: document.getElementById('regACC'),
+        regCounter: document.getElementById('regCounter'),
+        regSteps: document.getElementById('regSteps'),
+        regStatus: document.getElementById('regStatus'),
+        statusDot: document.getElementById('statusDot'),
+        memColHeaders: document.getElementById('memColHeaders'),
+        memGrid: document.getElementById('memGrid'),
+        btnModeDec: document.getElementById('btnModeDec'),
+        btnModeHex: document.getElementById('btnModeHex'),
+        cellInspector: document.getElementById('cellInspector'),
+        cellTooltip: document.getElementById('cellTooltip'),
+        refModal: document.getElementById('refModal'),
+        btnRefOpen: document.getElementById('btnRefOpen'),
+        btnRefClose: document.getElementById('btnRefClose'),
+      };
+
+      let displayMode = 'dec'; // 'dec' | 'hex'
+      let isRunning = false;
+      let runTimer = null;
+      let runDelayMs = 140;
+      const cellElements = new Array(256);
+
+      // ============================================================
+      // 4. FORMATTING HELPERS
+      // ============================================================
+      function toHex2(n) {
+        const v = wrap256(n);
+        return v.toString(16).toUpperCase().padStart(2, '0');
+      }
+
+      function formatValue(val) {
+        if (displayMode === 'hex') {
+          if (val < 0) return '-' + Math.abs(Math.trunc(val)).toString(16).toUpperCase();
+          return Math.trunc(val).toString(16).toUpperCase().padStart(2, '0');
+        }
+        return String(val);
+      }
+
+      function toPrintableAscii(val) {
+        if (Number.isInteger(val) && val >= 32 && val <= 126) {
+          return val === 32 ? 'SP' : String.fromCharCode(val);
+        }
+        return '';
+      }
+
+      // ============================================================
+      // 5. BUILD 16x16 MEMORY GRID
+      // ============================================================
+      function renderMemoryHeaders() {
+        el.memColHeaders.innerHTML = '';
+        const corner = document.createElement('div');
+        corner.textContent = displayMode === 'hex' ? 'HEX' : 'DEC';
+        corner.className = 'text-slate-600 font-semibold';
+        el.memColHeaders.appendChild(corner);
+
+        for (let c = 0; c < 16; c++) {
+          const colEl = document.createElement('div');
+          colEl.textContent = displayMode === 'hex' ? '+' + c.toString(16).toUpperCase() : '+' + c;
+          el.memColHeaders.appendChild(colEl);
+        }
+      }
+
+      function buildMemoryGrid() {
+        renderMemoryHeaders();
+        el.memGrid.innerHTML = '';
+
+        for (let r = 0; r < 16; r++) {
+          const rowEl = document.createElement('div');
+          rowEl.className = 'grid grid-cols-[34px_repeat(16,minmax(0,1fr))] gap-1 items-center';
+
+          // Row Header
+          const rowHdr = document.createElement('div');
+          rowHdr.className = 'row-hdr font-mono text-[10px] text-slate-500 text-right pr-1.5 select-none';
+          rowHdr.dataset.row = r;
+          rowHdr.textContent = displayMode === 'hex' ? toHex2(r * 16) : String(r * 16);
+          rowEl.appendChild(rowHdr);
+
+          // 16 Cells
+          for (let c = 0; c < 16; c++) {
+            const addr = r * 16 + c;
+            const cell = document.createElement('div');
+            cell.dataset.addr = addr;
+            cell.className =
+              'relative h-9 rounded border border-hw-border/70 bg-[#10141d] flex flex-col items-center justify-center font-mono select-none transition-colors duration-100 cursor-crosshair';
+
+            const valSpan = document.createElement('span');
+            valSpan.className = 'cell-val text-[11px] leading-none text-slate-500';
+            valSpan.textContent = '0';
+
+            const asciiSpan = document.createElement('span');
+            asciiSpan.className = 'cell-ascii text-[9px] leading-none text-cyan-400/80 mt-0.5 h-2.5';
+            asciiSpan.textContent = '';
+
+            cell.appendChild(valSpan);
+            cell.appendChild(asciiSpan);
+
+            // Hover / Inspector events
+            cell.addEventListener('mouseenter', (e) => showCellInfo(addr, e));
+            cell.addEventListener('mousemove', (e) => positionTooltip(e));
+            cell.addEventListener('mouseleave', hideCellInfo);
+
+            rowEl.appendChild(cell);
+            cellElements[addr] = { cell, valSpan, asciiSpan };
+          }
+          el.memGrid.appendChild(rowEl);
+        }
+      }
+
+      function updateMemoryGrid(writtenAddrs = []) {
+        const writtenSet = new Set(writtenAddrs);
+
+        // Update row headers if mode switched
+        document.querySelectorAll('.row-hdr').forEach((hdr) => {
+          const r = Number(hdr.dataset.row);
+          hdr.textContent = displayMode === 'hex' ? toHex2(r * 16) : String(r * 16);
+        });
+
+        for (let addr = 0; addr < 256; addr++) {
+          const { cell, valSpan, asciiSpan } = cellElements[addr];
+          const val = vm.memory[addr];
+          const ascii = toPrintableAscii(val);
+
+          valSpan.textContent = formatValue(val);
+          asciiSpan.textContent = ascii;
+
+          // Non-zero styling
+          if (val !== 0) {
+            cell.classList.add('cell-nonzero');
+            valSpan.classList.remove('text-slate-600', 'text-slate-500');
+            valSpan.classList.add('text-slate-100', 'font-semibold');
+          } else {
+            cell.classList.remove('cell-nonzero');
+            valSpan.classList.remove('text-slate-100', 'font-semibold');
+            valSpan.classList.add('text-slate-600');
+          }
+
+          // Active counter pointer glow
+          if (addr === vm.counter) {
+            cell.classList.add('cell-pointer');
+          } else {
+            cell.classList.remove('cell-pointer');
+          }
+
+          // Write flash animation
+          if (writtenSet.has(addr)) {
+            cell.classList.remove('cell-flash');
+            void cell.offsetWidth; // trigger reflow to restart animation
+            cell.classList.add('cell-flash');
+          }
+        }
+      }
+
+      // ============================================================
+      // 6. TOOLTIP & CELL INSPECTOR
+      // ============================================================
+      function showCellInfo(addr, event) {
+        const val = vm.memory[addr];
+        const ascii = Number.isInteger(val) && val >= 32 && val <= 126
+          ? `'${String.fromCharCode(val)}'`
+          : '—';
+        const infoHtml = `
+          <span class="text-amber-400">ADDR:</span> ${addr} (0x${toHex2(addr)})
+          <span class="text-slate-600 mx-1">|</span>
+          <span class="text-cyan-400">VAL:</span> ${val} (0x${toHex2(val)})
+          <span class="text-slate-600 mx-1">|</span>
+          <span class="text-emerald-400">ASCII:</span> ${ascii}
+        `;
+        el.cellInspector.innerHTML = infoHtml;
+        el.cellTooltip.innerHTML = `
+          <div class="text-amber-400 font-semibold">RAM[${addr}] <span class="text-slate-400 font-normal">(0x${toHex2(addr)})</span></div>
+          <div>Value: <span class="text-cyan-300">${val}</span> <span class="text-slate-500">(0x${toHex2(val)})</span></div>
+          <div>ASCII: <span class="text-emerald-300">${ascii}</span></div>
+        `;
+        el.cellTooltip.classList.remove('hidden');
+        positionTooltip(event);
+      }
+
+      function positionTooltip(event) {
+        const pad = 14;
+        let x = event.clientX + pad;
+        let y = event.clientY + pad;
+        const rect = el.cellTooltip.getBoundingClientRect();
+        if (x + rect.width > window.innerWidth - 10) {
+          x = event.clientX - rect.width - pad;
+        }
+        if (y + rect.height > window.innerHeight - 10) {
+          y = event.clientY - rect.height - pad;
+        }
+        el.cellTooltip.style.left = `${x}px`;
+        el.cellTooltip.style.top = `${y}px`;
+      }
+
+      function hideCellInfo() {
+        el.cellTooltip.classList.add('hidden');
+      }
+
+      // ============================================================
+      // 7. CODE EDITOR GUTTER & ACTIVE LINE HIGHLIGHT
+      // ============================================================
+      function updateEditorGutter() {
+        const lines = el.codeEditor.value.split(/\r?\n/);
+        el.lineCountBadge.textContent = `${lines.length} lines`;
+
+        let gutterHtml = '';
+        for (let i = 0; i < lines.length; i++) {
+          const isCurrent = !vm.halted && i === vm.pc;
+          gutterHtml += `<div class="editor-gutter-line ${isCurrent ? 'text-amber-400 font-bold' : ''}">${i}</div>`;
+        }
+        el.editorGutter.innerHTML = gutterHtml;
+        updateActiveLineHighlight();
+      }
+
+      function updateActiveLineHighlight() {
+        if (vm.halted || vm.pc < 0 || vm.pc >= vm.lines.length) {
+          el.activeLineHighlight.classList.add('hidden');
+          return;
+        }
+        const lineHeight = 22;
+        const paddingTop = 12; // p-3 = 12px
+        const topPos = paddingTop + vm.pc * lineHeight - el.codeEditor.scrollTop;
+        el.activeLineHighlight.style.transform = `translateY(${topPos}px)`;
+        el.activeLineHighlight.classList.remove('hidden');
+      }
+
+      // Sync gutter & highlight on editor scroll
+      el.codeEditor.addEventListener('scroll', () => {
+        el.editorGutter.scrollTop = el.codeEditor.scrollTop;
+        updateActiveLineHighlight();
+      });
+
+      // Recompile & reset PC when code is edited
+      el.codeEditor.addEventListener('input', () => {
+        stopRunning();
+        vm.resetRegisters(el.codeEditor.value);
+        updateAllUI();
+      });
+
+      // ============================================================
+      // 8. REGISTER & STATUS UI UPDATES
+      // ============================================================
+      function updateRegistersUI() {
+        el.regPC.textContent = vm.halted ? 'END' : String(vm.pc);
+        el.regACC.textContent = String(vm.acc);
+        el.regCounter.innerHTML = `${vm.counter} <span class="text-xs font-normal text-amber-500/70">(0x${toHex2(vm.counter)})</span>`;
+        el.regSteps.textContent = String(vm.steps);
+
+        if (isRunning) {
+          el.regStatus.textContent = 'RUNNING';
+          el.regStatus.className = 'text-xs font-mono font-semibold text-emerald-400';
+          el.statusDot.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+        } else if (vm.halted) {
+          el.regStatus.textContent = 'HALTED';
+          el.regStatus.className = 'text-xs font-mono font-semibold text-amber-400';
+          el.statusDot.className = 'w-2 h-2 rounded-full bg-amber-400';
+        } else {
+          el.regStatus.textContent = 'READY';
+          el.regStatus.className = 'text-xs font-mono font-semibold text-cyan-300';
+          el.statusDot.className = 'w-2 h-2 rounded-full bg-cyan-400';
+        }
+      }
+
+      function updateAllUI(writtenAddrs = []) {
+        updateRegistersUI();
+        updateEditorGutter();
+        updateMemoryGrid(writtenAddrs);
+      }
+
+      // ============================================================
+      // 9. EXECUTION CONTROLS (STEP / RUN / PAUSE / RESET / CLEAR)
+      // ============================================================
+      function performStep() {
+        if (vm.halted) {
+          stopRunning();
+          updateRegistersUI();
+          return;
+        }
+        const { output, written } = vm.step(el.inputBuffer.value);
+        if (output !== null) {
+          el.consoleOutput.textContent += output;
+          el.consoleOutput.scrollTop = el.consoleOutput.scrollHeight;
+        }
+        if (vm.halted) {
+          stopRunning();
+        }
+        updateAllUI(written);
+      }
+
+      function startRunning() {
+        if (isRunning) return;
+        if (vm.halted) {
+          // If already halted, reset PC automatically so Run feels intuitive
+          vm.resetRegisters(el.codeEditor.value);
+        }
+        isRunning = true;
+        el.labelRun.textContent = 'Pause';
+        el.iconRun.innerHTML = '<path d="M6 5h4v14H6V5zm8 0h4v14h-4V5z"/>';
+        el.btnRun.classList.remove('bg-emerald-600', 'hover:bg-emerald-500');
+        el.btnRun.classList.add('bg-amber-600', 'hover:bg-amber-500');
+        updateRegistersUI();
+
+        const loop = () => {
+          if (!isRunning) return;
+          performStep();
+          if (isRunning && !vm.halted) {
+            runTimer = setTimeout(loop, runDelayMs);
+          }
+        };
+        runTimer = setTimeout(loop, 10);
+      }
+
+      function stopRunning() {
+        isRunning = false;
+        if (runTimer !== null) {
+          clearTimeout(runTimer);
+          runTimer = null;
+        }
+        el.labelRun.textContent = 'Run';
+        el.iconRun.innerHTML = '<path d="M8 5v14l11-7z"/>';
+        el.btnRun.classList.remove('bg-amber-600', 'hover:bg-amber-500');
+        el.btnRun.classList.add('bg-emerald-600', 'hover:bg-emerald-500');
+        updateRegistersUI();
+      }
+
+      el.btnStep.addEventListener('click', () => {
+        stopRunning();
+        performStep();
+      });
+
+      el.btnRun.addEventListener('click', () => {
+        if (isRunning) {
+          stopRunning();
+        } else {
+          startRunning();
+        }
+      });
+
+      el.btnResetPC.addEventListener('click', () => {
+        stopRunning();
+        vm.resetRegisters(el.codeEditor.value);
+        el.consoleOutput.textContent = '';
+        updateAllUI();
+      });
+
+      el.btnClearRAM.addEventListener('click', () => {
+        stopRunning();
+        vm.clearRAM();
+        updateAllUI();
+      });
+
+      el.btnClearConsole.addEventListener('click', () => {
+        el.consoleOutput.textContent = '';
+      });
+
+      // Speed slider
+      el.speedSlider.addEventListener('input', () => {
+        runDelayMs = Number(el.speedSlider.value);
+        el.speedLabel.textContent = `${runDelayMs} ms`;
+      });
+
+      // Input buffer length indicator
+      function updateInputLen() {
+        el.inputLenBadge.textContent = `${el.inputBuffer.value.length} chars`;
+      }
+      el.inputBuffer.addEventListener('input', updateInputLen);
+
+      // DEC / HEX display toggle
+      function setDisplayMode(mode) {
+        displayMode = mode;
+        if (mode === 'dec') {
+          el.btnModeDec.className = 'px-2.5 py-1 rounded-md bg-hw-surface text-amber-400 font-semibold transition cursor-pointer';
+          el.btnModeHex.className = 'px-2.5 py-1 rounded-md text-slate-400 hover:text-slate-200 transition cursor-pointer';
+        } else {
+          el.btnModeHex.className = 'px-2.5 py-1 rounded-md bg-hw-surface text-amber-400 font-semibold transition cursor-pointer';
+          el.btnModeDec.className = 'px-2.5 py-1 rounded-md text-slate-400 hover:text-slate-200 transition cursor-pointer';
+        }
+        renderMemoryHeaders();
+        updateMemoryGrid();
+      }
+      el.btnModeDec.addEventListener('click', () => setDisplayMode('dec'));
+      el.btnModeHex.addEventListener('click', () => setDisplayMode('hex'));
+
+      // Preset Loading
+      document.querySelectorAll('.preset-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const key = btn.dataset.preset;
+          if (!PRESETS[key]) return;
+          stopRunning();
+          el.codeEditor.value = PRESETS[key];
+          el.consoleOutput.textContent = '';
+          vm.resetRegisters(el.codeEditor.value);
+          updateAllUI();
+
+          // Highlight active preset button
+          document.querySelectorAll('.preset-btn').forEach((b) => {
+            b.classList.remove('border-amber-500/70', 'text-amber-300', 'bg-amber-500/10');
+          });
+          btn.classList.add('border-amber-500/70', 'text-amber-300', 'bg-amber-500/10');
+        });
+      });
+
+      // Modal Controls
+      el.btnRefOpen.addEventListener('click', () => {
+        el.refModal.classList.remove('hidden');
+        el.refModal.classList.add('flex');
+      });
+      function closeModal() {
+        el.refModal.classList.add('hidden');
+        el.refModal.classList.remove('flex');
+      }
+      el.btnRefClose.addEventListener('click', closeModal);
+      el.refModal.addEventListener('click', (e) => {
+        if (e.target === el.refModal) closeModal();
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !el.refModal.classList.contains('hidden')) {
+          closeModal();
+        }
+      });
+
+      // ============================================================
+      // 10. INITIALIZE PLAYGROUND
+      // ============================================================
+      buildMemoryGrid();
+      updateInputLen();
+      // Load "Countdown" or "Hello World" by default
+      document.querySelector('.preset-btn[data-preset="hello"]').click();
+    })();
+  </script>
+</body>
+</html>
