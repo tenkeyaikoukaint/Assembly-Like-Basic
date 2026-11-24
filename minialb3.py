@@ -96,7 +96,7 @@ def parse(line):
 def count(arg):
     if arg>= 0:
         if Vals.counter < 255:
-            Vals.counter += arg:
+            Vals.counter += arg
     else:
         if Vals.counter > 0:
             Vals.counter += arg
