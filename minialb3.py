@@ -3,16 +3,17 @@
 
 import sys
 
-class Vals:
+class VM:
 
-    program = []
-    memory = [0 for i in range(0,256)]
-    acc = 0
-    counter = 0
-    pc = 0
-    print_buffer = ""
-    input_buffer = ""
-    symbols = []
+    def __init__(self):
+        self.program = []
+        self.memory = [0 for i in range(0,256)]
+        self.acc = 0
+        self.counter = 0
+        self.pc = 0
+        self.print_buffer = ""
+        self.input_buffer = ""
+        self.symbols = []
 
 class Line:
     def __init__(self):
@@ -34,75 +35,74 @@ def lexer(stmt):
         operand = stmt.pop(0)
     return label, opcode, operand
 
-def parse(line):
-    global Vals
-    op = line.opcode
-    arg = line.operand
+def parse(vm):
+    op = vm.program[vm.pc].opcode
+    arg = vm.program[vm.pc].operand
     if op == "print" or op == "print*":
-        # Vals.print_buffer += line.operand.replace("_"," ")
-        print(f"{Vals.acc}")
+        # vm.print_buffer += vm.program[vm.pc].operand.replace("_"," ")
+        print(f"{vm.acc}")
     elif op == "prints" or op == "prints*+":
-        Vals.print_buffer = ""
-        for i in range(0,Vals.acc):
-            Vals.print_buffer += chr(Vals.memory[Vals.counter])
-            count(1)
-        print(Vals.print_buffer)
+        vm.print_buffer = ""
+        for i in range(0, vm.acc):
+            vm.print_buffer += chr(vm.memory[vm.counter])
+            count(vm, 1)
+        print(vm.print_buffer)
     elif op == "input" or op == "input*":
-        # Vals.input_buffer = input(Vals.print_buffer)
+        # vm.input_buffer = input(vm.print_buffer)
         num = input()
-        Vals.acc = int(num)
+        vm.acc = int(num)
     elif op == "inputs" or op == "inputs*+":
         string = input()
-        for i in range(0, Vals.acc):
-            if Vals.acc <= len(string):
-               Vals.memory[Vals.counter] = ord(string[i])
-               count(1)
+        for i in range(0, vm.acc):
+            if vm.acc <= len(string):
+               vm.memory[vm.counter] = ord(string[i])
+               count(vm, 1)
     elif op == "store" or op == "store+":
-        Vals.memory[Vals.counter] = int(arg)
+        vm.memory[vm.counter] = int(arg)
     elif op == "stores" or op == "stores*+":
-        for i in range(0,Vals.acc):
-            if Vals.acc <= len(arg):
-                Vals.memory[Vals.counter] = ord(arg[i])
-                count(1)
+        for i in range(0,vm.acc):
+            if vm.acc <= len(arg):
+                vm.memory[vm.counter] = ord(arg[i])
+                count(vm, 1)
     elif op == "load" or op == "load*":
-         Vals.acc = int(arg)
+         vm.acc = int(arg)
     elif op == "set" or op == "set+":
-         Vals.counter = int(arg) % 256
+         vm.counter = int(arg) % 256
     elif op == "add" or op == "add*+":
-        Vals.acc += Vals.memory[Vals.counter]
+        vm.acc += vm.memory[vm.counter]
     elif op == "sub" or op == "sub*+":
-        Vals.acc -= Vals.memory[Vals.counter]
+        vm.acc -= vm.memory[vm.counter]
     elif op == "inc" or op == "inc+":
-        count(1)
+        count(vm, 1)
     elif op == "dec" or op == "dec+":
-        count(-1)
+        count(vm, -1)
     elif op == "cinc" or op == "cinc*+":
-        if Vals.acc == int(arg):
-            count(1)
+        if vm.acc == int(arg):
+            count(vm, 1)
     elif op == "cdec" or op == "cdec*+":
-        if Vals.acc == int(arg):
-            count(-1)
+        if vm.acc == int(arg):
+            count(vm, -1)
     elif op == "jpnz" or op == "jpnz+":
-        if Vals.counter != 0:
-            Vals.pc = labeltolinenum(arg)-1
+        if vm.counter != 0:
+            vm.pc = labeltolinenum(vm, arg)-1
     elif op == "call" or op == "call+":
-         Vals.memory[Vals.counter] = Vals.pc
-         count(1)
-         Vals.pc = labeltolinenum(arg)-1
+         vm.memory[vm.counter] = vm.pc
+         count(vm, 1)
+         vm.pc = labeltolinenum(vm, arg)-1
     elif op == "ret" or op == "ret+":
-         count(-1)
-         Vals.pc = Vals.memory[Vals.counter]
+         count(vm, -1)
+         vm.pc = vm.memory[vm.counter]
 
-def count(arg):
+def count(vm, arg):
     if arg>= 0:
-        if Vals.counter < 255:
-            Vals.counter += arg
+        if vm.counter < 255:
+            vm.counter += arg
     else:
-        if Vals.counter > 0:
-            Vals.counter += arg
+        if vm.counter > 0:
+            vm.counter += arg
 
-def labeltolinenum(label):
-    code = Vals.program
+def labeltolinenum(vm, label):
+    code = vm.program
     linenum = 0
     for i in range(0, len(code)):
         if code[i].label == label:
@@ -110,7 +110,7 @@ def labeltolinenum(label):
     return linenum
 
 def main():
-    global Vals
+    vm = VM()
     file = open(sys.argv[1])
     source = file.readlines()
     for current_line in source:
@@ -118,17 +118,17 @@ def main():
         line = Line()
         if len(stmt) > 0:
             line.label, line.opcode, line.operand = lexer(stmt)
-            Vals.program.append(line)
-    while True:
+            vm.program.append(line)
+    while vm.pc <len(vm.program):
         """
-        print(f"pc:{Vals.pc}")
-        print(f"{Vals.program[Vals.pc]}")
-        print(Vals.symbols)
-        print(f"counter:{Vals.counter}")
+        print(f"pc:{vm.pc}")
+        print(f"{vm.program[vm.pc]}")
+        print(vm.symbols)
+        print(f"counter:{vm.counter}")
         """
-        parse(Vals.program[Vals.pc])
-        Vals.pc += 1
-        if Vals.pc >=len(Vals.program):
+        parse(vm)
+        vm.pc += 1
+        if vm.pc >= len(vm.program):
             break
     file.close()
 
